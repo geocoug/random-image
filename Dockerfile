@@ -47,4 +47,4 @@ RUN chown -R app:app $HOME
 
 USER app
 
-# CMD ["python", "unsplash_image.py", "-v", "./images/"]
+CMD ["python", "random_image.py", "-v", "tracker.json", "./images/"]

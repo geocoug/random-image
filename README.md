@@ -33,5 +33,5 @@ docker build -t random_image .
 #### Run
 
 ```sh
-docker run -it --rm -v $(pwd):/usr/local/app random_image python random_image.py -v ./images/
+docker run -it --rm -v $(pwd):/usr/local/app random_image
 ```
