@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#!/usr/bin/env python
 # random_image.py
 
 import argparse
@@ -25,9 +25,6 @@ ACCESS_KEY = os.getenv("ACCESS_KEY")
 FORMAT = "jpg"
 WIDTH = "3840"  # 4k
 ORIENTATION = "landscape"
-# COLLECTIONS = [
-#     dict(id="1053828", title="Tabliss"),
-# ]
 TOPICS = [
     dict(id="bo8jQKTaE0Y", title="Wallpapers"),
     dict(id="6sMVjTLSkeQ", title="Nature"),
@@ -65,8 +62,9 @@ class RequestTracker:
     are allowed per hour for a demo application.
     """
 
-    def __init__(self, tracker: str):
+    def __init__(self: "RequestTracker", tracker: str) -> None:
         self.tracker = tracker
+        self.archive = os.path.join(os.path.dirname(__file__), "archive.json")
         self.exists = self.tracker_exists()
         self.requests = [Any]
         self.request_rate_window = 60 * 60  # 1 hour
@@ -77,43 +75,51 @@ class RequestTracker:
         )
         self.read()
 
-    def __len__(self):
+    def __len__(self: "RequestTracker") -> int:
         if self.exists:
             return len(self.requests)
-        else:
-            return 0
+        return 0
 
-    def timestamp(self):
+    def timestamp(self: "RequestTracker") -> str:
         return datetime.datetime.now().replace(microsecond=0).isoformat()
 
-    def str_to_iso(self, timestamp: str):
+    def str_to_iso(self: "RequestTracker", timestamp: str) -> datetime.datetime:
         return datetime.datetime.fromisoformat(timestamp).replace(microsecond=0)
 
-    def tracker_exists(self):
+    def tracker_exists(self: "RequestTracker") -> bool:
         if os.path.exists(self.tracker):
             return True
-        else:
-            return False
+        return False
 
-    def read(self):
+    def read(self: "RequestTracker") -> None:
         if self.exists:
             with open(self.tracker) as f:
                 self.requests = json.load(f)
             self.remove_outdated_requests()
 
-    def write(self):
+    def write(self: "RequestTracker") -> None:
         with open(self.tracker, "w") as f:
             json.dump(self.requests, f, indent=2)
 
-    def add(self, timestamp, **kwargs):
+    def write_archive(self: "RequestTracker", request: dict) -> None:
+        if os.path.exists(self.archive):
+            with open(self.archive, "r") as f:
+                data = json.load(f)
+        else:
+            data = []
+        data.append(request)
+        with open(self.archive, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def add(self: "RequestTracker", timestamp: str, **kwargs: dict) -> None:
         self.read()
         if self.rate_limit_ok():
             logger.info(
-                f"{self.str_to_iso(timestamp)} -- Request {len(self)} of {self.request_rate_limit}",
+                f"{self.str_to_iso(timestamp)} -- Request {len(self)} of {self.request_rate_limit}",  # noqa
             )
             for key in kwargs:
                 logger.info(
-                    f"  {key}{' '*((max(map(len, kwargs)) + 1)- len(key))}: {kwargs[key]}",
+                    f"  {key}{' '*((max(map(len, kwargs)) + 1)- len(key))}: {kwargs[key]}",  # noqa
                 )
             self.requests.append(
                 dict(
@@ -122,23 +128,31 @@ class RequestTracker:
                 ),
             )
             self.write()
+            self.write_archive(
+                dict(
+                    timestamp=timestamp,
+                    **kwargs,
+                ),
+            )
         else:
             self.rate_limit_exceeded()
 
-    def remove_outdated_requests(self):
+    def remove_outdated_requests(self: "RequestTracker") -> None:
         for request in self.requests:
             timestamp = self.str_to_iso(request["timestamp"])
             if not (timestamp >= self.start_window and timestamp <= self.end_window):
                 self.requests.remove(request)
 
-    def rate_limit_ok(self):
+    def rate_limit_ok(self: "RequestTracker") -> bool:
         if len(self.requests) < self.request_rate_limit:
             return True
-        else:
-            return False
+        return False
 
-    def rate_limit_exceeded(self):
-        return f"Request limit reached. Please try again later. Limit = {self.request_rate_limit}/hour."
+    def rate_limit_exceeded(self: "RequestTracker") -> str:
+        return f"""
+            Request limit reached. Please try again later.
+            Limit = {self.request_rate_limit}/{self.request_rate_window} seconds.
+        """
 
 
 def clparser() -> argparse.ArgumentParser:
@@ -168,7 +182,7 @@ def clparser() -> argparse.ArgumentParser:
     return parser
 
 
-def create_dirs(dir: str):
+def create_dirs(dir: str) -> None:
     """Create a directory if it does not already exist.
 
     Args:
@@ -194,7 +208,7 @@ def send_request(url: str) -> requests.Response:
         requests.Response: HTTP response.
     """
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=3)
     except requests.RequestException:
         raise
     if not response.ok:
@@ -214,7 +228,7 @@ def download_unsplash_image(tracker: RequestTracker, output_dir: str) -> None:
     endpoint = "https://api.unsplash.com/photos/random"
     topic_ids = ",".join([topic["id"] for topic in TOPICS])
     topic_names = ",".join([topic["title"] for topic in TOPICS])
-    request = f"{endpoint}?orientation={ORIENTATION}&topics={topic_ids}&client_id={ACCESS_KEY}"
+    request = f"{endpoint}?orientation={ORIENTATION}&topics={topic_ids}&client_id={ACCESS_KEY}"  # noqa
     response = send_request(request).json()
     image_url = f"{response['urls']['raw']}&w={WIDTH}&fm={FORMAT}"
     image_id = response["id"]
@@ -239,7 +253,7 @@ def download_unsplash_image(tracker: RequestTracker, output_dir: str) -> None:
         f.write(send_request(image_url).content)
 
 
-def main():
+def main() -> None:
     """Main function."""
     tracker = RequestTracker(tracker_json)
     if tracker.rate_limit_ok():
