@@ -208,7 +208,7 @@ def send_request(url: str) -> requests.Response:
         requests.Response: HTTP response.
     """
     try:
-        response = requests.get(url, timeout=3)
+        response = requests.get(url, timeout=5)
     except requests.RequestException:
         raise
     if not response.ok:
